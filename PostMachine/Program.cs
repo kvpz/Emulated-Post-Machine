@@ -2,6 +2,7 @@
  * http://logica.ugent.be/liesbeth/postsmachine.pdf
  * http://www.win.tue.nl/~wstomv/misc/PostMachineUspensky.pdf
  */
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,22 +12,23 @@ using System.Threading.Tasks;
 
 namespace PostMachine
 {
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
             bool batch = false;
             if (args.Length > 1) batch = true;
             PostMachine m = new PostMachine();
-            bool loaded = false;
-            char response = 'x';
+            char response;
 
             do
             {
+                bool loaded = false;
                 do loaded = m.Load(batch); while (!loaded);
                 m.Run(batch);
                 Console.WriteLine("\n** Load another program?");
-                response = (char)Console.Read();
+                response = (char) Console.Read();
+                Console.ReadLine();
                 if (batch) Console.WriteLine(response);
             } while (response == 'y' || response == 'Y');
         }
@@ -35,20 +37,15 @@ namespace PostMachine
     class PostMachine
     {
         private static int maxIterations = 10000;
-        private List<string> program_; // stores programs (instructions)
-        private Queue<char> tape_;     // the tape input strings
-        private char internalState_;           // post machine's state 
+        private readonly List<string> program_; // stores programs (instructions)
+        private Queue<char> tape_; // the tape input strings
+        private char internalState_; // post machine's state 
 
-        private enum States
-        {
-            Start = 'S',
-            Halt = 'H'
-        };
         public PostMachine()
         {
-            Console.WriteLine("PostMachine initialized.");
             program_ = new List<string>();
             tape_ = new Queue<char>();
+            internalState_ = 'S';
         }
 
         /// <summary>
@@ -59,119 +56,106 @@ namespace PostMachine
         /// <returns> bool </returns>
         public bool Load(bool batch = false)
         {
-            StreamReader fstreamReader; 
-            
+            StreamReader fstreamReader;
+
             // Open input file 
             do
             {
-                Console.Write(" Name of instruction file: ");
+                Console.Write(" Name of post machine instruction file: ");
                 string filename = Console.ReadLine();
                 if (!OpenText(out fstreamReader, filename))
                     Console.WriteLine("** Cannot open file'" + filename + "'. Try again");
             } while (fstreamReader == StreamReader.Null);
-            
+
             // if (batch) Console.WriteLine(filename);
 
             program_.Clear();
             string s;
-            
-            while ( (s = fstreamReader.ReadLine()) != null ) 
+
+            // Read instructions into List<string> program_ until '*'(which is not added to List)
+            while ((s = fstreamReader.ReadLine()) != null)
             {
-                int pos = s.IndexOf('*', 0); // returns -1 if value is not found
-                if (pos < 0) pos = s.Length; 
-                if (pos > 0)// (pos < s.Length - 1 && pos > 0) //  not a comment (> 0) 
+                if (s.IndexOf('*', 0) < 0 && s.Length > 0) //pos > 0) // if not a comment (> 0) 
                 {
-                    StringBuilder temp = new StringBuilder(" ", pos); 
-                    for (int j = 0; j < pos; ++j)
-                        temp[j] = s[j];
-                    Console.WriteLine(s);
-                    program_.Add(temp.ToString());
+                    program_.Add(s);
                 }
-                else if (pos == 0 && s.IndexOf('\n', 0) == 1)  program_.Add(s);
-                else if (pos == s.Length)  program_.Add(s);
             }
             fstreamReader.Dispose();
             return true;
         }
 
         /// <summary>
-        /// 
+        /// Run user inputs against the post program.
         /// </summary>
         /// <param name="batch"></param>
         public void Run(bool batch = false)
         {
-            
-            bool finished = false, halt = false, crash = false, maxitersReached = false, match = false;
-            internalState_ = 'S';
-
-            while (true)
+            while (true) // until first '*' appears
             {
+                internalState_ = 'S';
+                bool finished = false, halt = false, crash = false, maxitersReached = false;
                 tape_.Clear();
                 Console.Write("  Input string (* to end): ");
                 // if(its == 0)
-                char input = (char) Console.Read(); // Console.ReadKey().KeyChar;
                 // if(batch) put
-                if (input == '*') // end of program OR if at the start of a line, a comment.
+                //TextReader istream = Console.In;
+                var input = Console.ReadLine().ToCharArray();
+                try
                 {   
-                    // Console.WriteLine("{0}", Console.OpenStandardInput());
-                    // Utility.ClearBuffer(Console.OpenStandardInput());  //Console.OpenStandardInput());
-                    // if(batch) Console.Write('\n');
+                    if (input.ElementAt(0) == '*')
+                    {
+                        // ClearBuffer
+                        // if(batch) Console.Write('\n');
+                        return;
+                    }
                 }
-                while (input != '\n')
+                catch 
                 {
-                    tape_.Enqueue(input);
-                    input = (char) Console.Read(); // Console.ReadKey().KeyChar;
-                    // if(batch) Console.Write('\n');
+                    continue;
                 }
+                
+                tape_ = new Queue<char>(input);
+  
                 // if(batch) Console.Write('\n');
-                tape_.Enqueue('#'); // # separates input strings
+                tape_.Enqueue('#'); // marks end of input string
 
                 // Run post machine
                 long iteration = 0;
                 do
                 {
-                    match = false;
+                    bool match = false;
                     foreach (var instruction in program_)
                     {
                         char currentState = instruction.ElementAt(0);
                         char ch = instruction.ElementAt(1);
                         char newState = instruction.ElementAt(2);
+                        // if first instruction char equals internal state && second char equals the front of tape
                         if (currentState.Equals(internalState_) && tape_.Count != 0 && ch == tape_.First())
                         {
-                            Console.WriteLine("program_ first char of instruction matches first tape_ element: {0}", tape_.First());
-                            //if (tape_.Count != 0)
-                            //{
-                                //char tapeNext = tape_.First();
-                                //if (instruction.ElementAt(1) == tape_.First())//tapeNext)
-                                //{
-                                    match = true;
-                                    tape_.Dequeue();
-                                    internalState_ = instruction.ElementAt(2); // new state
-                                    for (int j = 3; j < instruction.Length; ++j) // 
-                                    {
-                                        tape_.Enqueue(instruction.ElementAt(j));
-                                    }
-                                //}
-                            //}
+                            match = true;
+                            tape_.Dequeue();
+                            internalState_ = newState; // new state
+                            for (int j = 3; j < instruction.Length; ++j) // word portion of instruction to be appended to tape
+                            {
+                                tape_.Enqueue(instruction[j]);
+                            }
                         }
                     } // foreach
 
-                    internalState_ = 'H';
                     ++iteration;
                     halt = (internalState_ == 'H');
                     crash = !match;
                     maxitersReached = (iteration == maxIterations);
                     finished = halt || crash || maxitersReached;
-
                 } while (!finished);
 
                 if (halt)
                 {
                     Console.WriteLine("String accepted.");
                     Console.WriteLine("\n\n");
-                    Console.WriteLine("String at halt: ");
+                    Console.Write("String(tape) at halt: ");
                     foreach (var t in tape_)
-                        Console.Write("{0} ", t);
+                        Console.Write("{0}", t);
 
                 }
                 else if (crash)
