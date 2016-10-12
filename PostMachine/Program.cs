@@ -37,11 +37,11 @@ namespace PostMachine
         private static int maxIterations = 10000;
         private List<string> program_; // stores programs
         private Queue<char> tape_;     // the tape
-        private char state_;           // stores the internal state 
+        private char state_;           // post machine's state 
 
         public PostMachine()
         {
-            Console.WriteLine("PostMachine started");
+            Console.WriteLine("PostMachine initialized.");
             program_ = new List<string>();
             tape_ = new Queue<char>();
         }
@@ -70,8 +70,8 @@ namespace PostMachine
             int count = 0;
             while ( (s = in1.ReadLine()) != null ) 
             {
-                int pos = s.IndexOf('*', 0);
-                if (s.Length > 0 && s.ElementAt(0) != '*') pos = s.Length; // temporary fix
+                int pos = s.IndexOf('*', 0); // returns -1 if value is not found
+                if (pos == -1) pos = s.Length; 
                 if (pos < s.Length - 1 && pos > 0)
                 {
                     StringBuilder temp = new StringBuilder(' ', pos);
